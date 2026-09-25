@@ -1,0 +1,5 @@
+python-dotenv
+Appium-Python-Client
+selenium
+seleniumbase
+pytest

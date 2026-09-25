@@ -1,0 +1,7 @@
+.env
+.venv/
+__pycache__/
+reports/
+core/web/.brightdata_ext/
+.sb_profile/
+targets/web/*/.sb_profile/

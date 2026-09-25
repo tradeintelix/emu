@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]  # lets tests do `from core...` / `from targets...`
+# importlib: every target has its own tests/ and pages/, so no shared module names or sys.path tricks
+addopts = "--import-mode=importlib"
