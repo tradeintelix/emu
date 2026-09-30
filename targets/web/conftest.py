@@ -3,6 +3,7 @@ import time
 
 import pytest
 
+from config.settings import PROXY_COUNTRY
 from core.web.browser import create_browser
 from core.web.steps import StepRecorder
 
@@ -10,14 +11,16 @@ from core.web.steps import StepRecorder
 def _target_config(target_dir):
     """Loads <target>/target.py if present. Keeps per-target, non-secret settings (like
     whether this target is authorized for CAPTCHA-solving) visible in that target's own
-    folder instead of a shared file every target would otherwise have to edit."""
+    folder instead of a shared file every target would otherwise have to edit.
+    `python run.py --web <name> --country <cc>` overrides the target's own default."""
     cfg_path = target_dir / "target.py"
     if not cfg_path.exists():
-        return {"solve_captcha": False, "country": None}
+        return {"solve_captcha": False, "country": PROXY_COUNTRY or None}
     spec = importlib.util.spec_from_file_location(f"target_config_{target_dir.name}", cfg_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return {"solve_captcha": getattr(mod, "SOLVE_CAPTCHA", False), "country": getattr(mod, "PROXY_COUNTRY", None)}
+    return {"solve_captcha": getattr(mod, "SOLVE_CAPTCHA", False),
+            "country": PROXY_COUNTRY or getattr(mod, "PROXY_COUNTRY", None)}
 
 
 @pytest.fixture

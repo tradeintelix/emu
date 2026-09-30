@@ -8,7 +8,8 @@ from targets.web.uber.pages.signup_page import SignUpPage
 
 def test_signup_with_phone_number(steps):
     """Home -> Sign up -> Ride -> (guest map) Sign up -> enter number -> Continue.
-    Waits 10s on the OTP page if one appears; stops immediately on a CAPTCHA. Never types a
+    Waits on the OTP page if one appears; solves the Arkose CAPTCHA via CapSolver
+    when solve_captcha is on (see targets/web/uber/target.py). Never types a
     real OTP - the code is only ever read off the phone by a person, never by this script."""
     phone = require("UBER_PHONE")
     home = HomePage(steps.driver)
@@ -35,5 +36,6 @@ def test_signup_with_phone_number(steps):
     if outcome == "otp":
         with steps.step("Wait 10s on the OTP page"):
             time.sleep(10)
-    # "captcha": Bright Data either wasn't enabled or couldn't solve it - stop either way,
-    # no manual bypass attempt. Never types a real OTP even when solve_captcha gets us there.
+    # "captcha": CapSolver wasn't configured (no CAPSOLVER_API_KEY) or couldn't
+    # solve it - stop either way, no manual bypass attempt. Never types a real
+    # OTP even when solving gets us to the OTP screen.

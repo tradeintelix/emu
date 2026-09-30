@@ -11,12 +11,11 @@ class SignUpPage(BasePage):
     CONTINUE = (By.ID, "forward-button")  # "Continue" / "Continuar" depending on locale
 
     def enter_phone(self, number):
-        # Pass the number with its country code (e.g. +918459292374). A bare number gets the
-        # country Uber guesses from the exit IP, which on Bright Data isn't always India.
+        # Always pass the number with its country code (e.g. +918459292374).
         self.fill(self.PHONE_OR_EMAIL, number)
 
     def submit(self):
         self.click(self.CONTINUE)
 
-    def wait_for_otp_or_captcha(self, timeout=20, solve_captcha=False):
+    def wait_for_otp_or_captcha(self, timeout=90, solve_captcha=False):
         return wait_for_otp_or_captcha(self.driver, timeout, solve_captcha=solve_captcha)

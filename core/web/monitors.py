@@ -2,13 +2,10 @@ import json
 
 
 def _get_log(driver, log_type):
-    # driver.get_log() only exists on the local Chrome class (selenium.webdriver.chromium.webdriver.
-    # ChromiumDriver) - not on plain webdriver.Remote, which is what Bright Data's Browser API
-    # connects as. The underlying "getLog" command is still registered on the connection either
-    # way (it's a ChromiumRemoteConnection command, not a driver-class method), so calling it
-    # directly here works for both a local Chrome session and a remote Bright Data one.
-    # Pure CDP (sb_cdp) has no WebDriver log endpoint at all - return [] so StepRecorder
-    # keeps working; challenge classification lives in core/web/sb_detect.py instead.
+    # Local Chrome exposes logs via the "getLog" command; call it directly so both
+    # plain and Chromium drivers work. Pure CDP (sb_cdp) has no WebDriver log
+    # endpoint at all - return [] so StepRecorder keeps working; challenge
+    # classification lives in core/web/sb_detect.py instead.
     if driver.__class__.__module__.startswith("seleniumbase"):
         return []
     return driver.execute("getLog", {"type": log_type})["value"]

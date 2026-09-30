@@ -22,5 +22,5 @@ def test_signup_with_phone_number(steps):
         outcome = signup.wait_for_otp_or_captcha(solve_captcha=steps.solve_captcha)
     print(f"Outcome: {outcome}", flush=True)
     assert outcome != "timeout", "Neither an OTP field nor a CAPTCHA showed up after Continue"
-    # "captcha": Bright Data either wasn't enabled or couldn't solve it - stop either way.
+    # "captcha": CapSolver wasn't configured or couldn't solve it - stop either way.
     # "otp": never types a real OTP even when solve_captcha gets us there.
