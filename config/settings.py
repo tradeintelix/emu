@@ -40,6 +40,14 @@ BRIGHTDATA_ZONE_PASSWORD = os.getenv("BRIGHTDATA_ZONE_PASSWORD", "")
 # the target's own target.py PROXY_COUNTRY when blank.
 PROXY_COUNTRY = os.getenv("PROXY_COUNTRY", "")
 
+# Country of the phone number typed into sign-up/login forms (country picker name, e.g.
+# "Pakistan"). Set per run with `python run.py ... --phone-country <name>`; blank = the
+# target's own default (target.py COUNTRY).
+PHONE_COUNTRY = os.getenv("PHONE_COUNTRY", "")
+# Phone number for this run (national number, without the country code), set with
+# `python run.py ... --phone <number>`. Blank = the target's own <TARGET>_PHONE from .env.
+PHONE = os.getenv("PHONE", "")
+
 # Legacy Bright Data proxy vars (deprecated, kept for backward compat).
 # Blank = direct connection (current default since the CapSolver switch).
 # If set, local Chrome / SB-CDP still route through them when the residential

@@ -1,6 +1,6 @@
 import time
 
-from config.settings import require
+from config.settings import PHONE, PHONE_COUNTRY, require
 from core.permissions import allow_permissions_until
 from targets.apps.zomato.pages.login_page import LoginPage
 from targets.apps.zomato.pages.otp_page import OtpPage
@@ -9,7 +9,9 @@ from targets.apps.zomato.pages.otp_page import OtpPage
 def test_login_with_phone_number(steps):
     """First launch -> allow location + notifications -> enter number -> Continue -> OTP screen.
     Waits 5s on the OTP screen and stops; never types an OTP."""
-    phone = require("ZOMATO_PHONE")
+    # the flow types next to a fixed +91; any other country's number would reach a stranger in India
+    assert PHONE_COUNTRY in ("", "India"), f"Zomato flow only supports India numbers, got --phone-country {PHONE_COUNTRY}"
+    phone = PHONE or require("ZOMATO_PHONE")
     login, otp = LoginPage(steps.driver), OtpPage(steps.driver)
 
     with steps.step("Allow first-launch permissions"):

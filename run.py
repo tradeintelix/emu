@@ -6,6 +6,7 @@
     python run.py --web spotify -k phone         # anything unknown is passed on to pytest
     python run.py --web uber --country us        # runs the flow through a US residential exit IP
                                                   # (Bright Data; see core/web/residential_proxy.py)
+    python run.py --app indrive --phone-country Pakistan --phone 3345333345   # country + number per run
 """
 import argparse
 import os
@@ -30,6 +31,10 @@ def main():
     group.add_argument("--list", action="store_true", help="list available targets")
     ap.add_argument("--country", metavar="CC",
                      help="residential proxy exit country (ISO-3166, e.g. us, in, eu) for this run")
+    ap.add_argument("--phone-country", metavar="NAME",
+                     help="country of the phone number, as named in the app's picker (e.g. Pakistan)")
+    ap.add_argument("--phone", metavar="NUMBER",
+                     help="phone number for this run, without the country code (e.g. 3345333345)")
     args, pytest_args = ap.parse_known_args()
 
     if args.list:
@@ -44,6 +49,10 @@ def main():
     env = os.environ.copy()
     if args.country:
         env["PROXY_COUNTRY"] = args.country
+    if args.phone_country:
+        env["PHONE_COUNTRY"] = args.phone_country
+    if args.phone:
+        env["PHONE"] = args.phone
 
     # -s: show each step live in the terminal (the steps are also saved in the target's reports/ folder)
     cmd = [sys.executable, "-m", "pytest", "-s", str(ROOT / "targets" / FOLDER[kind] / name / "tests"), *pytest_args]
