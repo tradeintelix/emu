@@ -15,3 +15,10 @@ def driver():
     d = create_driver(serial)
     yield d
     d.quit()
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Exposes the test outcome to fixtures as item.rep_call (used by core/results.py)."""
+    report = (yield).get_result()
+    setattr(item, "rep_" + report.when, report)

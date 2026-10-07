@@ -18,6 +18,17 @@ def require(name):
     return value
 
 
+# MongoDB holding one document per test run (core/results.py): DBs "Apps" and "Web".
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+
+# SMPP provider (core/smpp_listener.py). Blank until the provider sends the details.
+SMPP_HOST = os.getenv("SMPP_HOST", "")
+SMPP_PORT = os.getenv("SMPP_PORT", "")
+SMPP_SYSTEM_ID = os.getenv("SMPP_SYSTEM_ID", "")
+SMPP_PASSWORD = os.getenv("SMPP_PASSWORD", "")
+SMPP_BIND = os.getenv("SMPP_BIND", "transceiver")  # transceiver | receiver
+SMPP_TLS = os.getenv("SMPP_TLS", "0") == "1"
+
 APPIUM_URL =os.getenv("APPIUM_URL", "http://127.0.0.1:4723")
 
 APP_PACKAGE =os.getenv("APP_PACKAGE", "")  # checked when the app is launched, so unit tests don't need it

@@ -3,3 +3,5 @@ Appium-Python-Client
 selenium
 seleniumbase
 pytest
+pymongo
+smpplib

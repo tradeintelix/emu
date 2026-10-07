@@ -3,6 +3,8 @@ import time
 
 import pytest
 
+from core import results
+
 from config.settings import PROXY_COUNTRY
 from core.web.browser import create_browser
 from core.web.steps import StepRecorder
@@ -31,6 +33,8 @@ def steps(request):
     driver = create_browser(solve_captcha=cfg["solve_captcha"], country=cfg["country"])
     rec = StepRecorder(driver, target_dir / "reports" / time.strftime("%Y%m%d-%H%M%S"))
     rec.solve_captcha = cfg["solve_captcha"]
+    col, rec.result_id = results.start("web", target_dir.name)
     yield rec
+    results.finish(col, rec.result_id, hasattr(request.node, "rep_call") and request.node.rep_call.passed)
     rec.finish()
     driver.quit()

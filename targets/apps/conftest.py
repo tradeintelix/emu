@@ -3,6 +3,8 @@ import time
 
 import pytest
 
+from core import results
+
 
 @pytest.fixture
 def steps(request):
@@ -31,6 +33,8 @@ def steps(request):
     # window focus, which a first-launch permission dialog (owned by the OS) takes away
     driver.activate_app(package)
     rec = StepRecorder(driver, target_dir / "reports" / time.strftime("%Y%m%d-%H%M%S"))
+    col, rec.result_id = results.start("app", target_dir.name)
     yield rec
+    results.finish(col, rec.result_id, hasattr(request.node, "rep_call") and request.node.rep_call.passed)
     rec.finish()
     driver.quit()
