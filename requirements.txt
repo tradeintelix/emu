@@ -5,3 +5,5 @@ seleniumbase
 pytest
 pymongo
 smpplib
+redis
+mongomock

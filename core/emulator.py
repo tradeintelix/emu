@@ -18,6 +18,17 @@ def run(*cmd, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, check=True, **kw).stdout
 
 
+def console_tap(serial, x, y):
+    """Tap (x, y) in screen pixels through the emulator console's virtual touchscreen. Apps see a
+    hardware touch, unlike UiAutomator/`adb input` taps, which some apps (WhatsApp registration)
+    silently drop. Emulators only: a real phone has no console, and raw input needs root there."""
+    if not serial.startswith("emulator-"):
+        raise RuntimeError(f"Hardware taps need an emulator; {serial} is a real device")
+    run(ADB, "-s", serial, "emu", "event", "mouse", str(x), str(y), "0", "1")
+    time.sleep(0.1)  # a real tap's length; down/up in the same instant can read as no tap
+    run(ADB, "-s", serial, "emu", "event", "mouse", str(x), str(y), "0", "0")
+
+
 def parse_devices(adb_output):
     """Serials of devices in state 'device' from `adb devices` output (offline/unauthorized ignored)."""
     lines = adb_output.strip().splitlines()[1:]  # first line is the "List of devices" header
@@ -51,15 +62,22 @@ def _wait_for_boot(serial, timeout):
     raise TimeoutError(f"{serial} did not finish booting within {timeout}s")
 
 
-def ensure_device(avd_name=AVD_NAME, port=5554, headless=HEADLESS, timeout=BOOT_TIMEOUT):
-    """Return the serial of an online device, booting the emulator first if none is running."""
+def ensure_device(avd_name=AVD_NAME, port=5554, headless=HEADLESS, timeout=BOOT_TIMEOUT, exclusive=False):
+    """Return the serial of an online device, booting the emulator first if none is running.
+    exclusive (parallel slots): only emulator-<port> counts, and it boots -read-only, so several
+    instances share one AVD (the golden image with the apps) and each starts clean."""
+    serial = f"emulator-{port}"
     running = online_devices()
-    if running:
+    if exclusive and serial in running:
+        return serial
+    if running and not exclusive:
         log.info("Device already running: %s", running[0])
         return running[0]
 
     _ensure_avd(avd_name)
     cmd = [EMULATOR, "-avd", avd_name, "-port", str(port), "-no-snapshot-save", "-no-boot-anim"]
+    if exclusive:
+        cmd.append("-read-only")
     if headless:
         cmd += ["-no-window", "-no-audio", "-gpu", "swiftshader_indirect"]
     log.info("Starting emulator: %s", " ".join(cmd))
@@ -70,6 +88,18 @@ def ensure_device(avd_name=AVD_NAME, port=5554, headless=HEADLESS, timeout=BOOT_
     _wait_for_boot(serial, timeout)
     log.info("Emulator ready: %s", serial)
     return serial
+
+
+def kill_emulator(serial, timeout=60):
+    """Shuts the emulator down and waits until adb no longer lists it, so the slot's port is free
+    for the next boot."""
+    try:
+        run(ADB, "-s", serial, "emu", "kill")
+    except subprocess.CalledProcessError:
+        pass  # already gone
+    deadline = time.monotonic() + timeout
+    while serial in run(ADB, "devices") and time.monotonic() < deadline:
+        time.sleep(1)
 
 
 if __name__ == "__main__":

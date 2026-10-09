@@ -1,5 +1,3 @@
-import time
-
 from config.settings import PHONE, PHONE_COUNTRY, require
 from core.permissions import allow_permissions_until
 from targets.apps.spotify import target
@@ -11,7 +9,8 @@ from targets.apps.spotify.pages.welcome_page import WelcomePage
 
 def test_login_with_phone_number(steps):
     """First launch -> Log in -> Phone number -> country -> enter number -> Next -> OTP screen ->
-    wait 30s -> Resend code -> wait 5s. Never types an OTP."""
+    SMPP decision (core/otp.py): REJECTED (delivered to a real handset) ends the flow without typing
+    anything; ACCEPTED types the OTP from SMPP and waits for Spotify to leave the code screen."""
     country = PHONE_COUNTRY or target.COUNTRY
     phone = PHONE or require("SPOTIFY_PHONE")
     # field takes the national number; the calling code comes from the selected country.
@@ -33,11 +32,16 @@ def test_login_with_phone_number(steps):
         phone_page.enter_phone(phone)
     with steps.step("Tap Next"):
         phone_page.tap_next()
+        steps.otp.otp_requested()
     with steps.step("Wait for OTP screen"):
         print(f"OTP screen: {otp.wait_until_open()}", flush=True)
-    with steps.step("Wait 30s on the OTP screen"):
-        time.sleep(30)
-    with steps.step("Tap Resend code"):
-        otp.tap_resend()
-    with steps.step("Wait 5s after resend"):
-        time.sleep(5)
+    with steps.step("Wait for SMPP decision"):
+        decision, code = steps.otp.wait()
+    print(f"SMPP decision: {decision}", flush=True)
+    assert decision, "No SMPP decision before OTP_WAIT_TIMEOUT"
+    if decision == "REJECTED":
+        return  # delivered to a real handset: no OTP to enter, this number is done
+    with steps.step("Enter OTP"):
+        otp.enter_code(code)
+    with steps.step("Wait for login to complete"):
+        otp.wait_until_closed()

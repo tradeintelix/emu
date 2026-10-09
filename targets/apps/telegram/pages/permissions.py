@@ -6,6 +6,7 @@ whichever dialogs show up, not decide how many there are or in what order."""
 import time
 
 from appium.webdriver.common.appiumby import AppiumBy
+from selenium.common.exceptions import StaleElementReferenceException
 
 from core.permissions import ALLOW
 
@@ -22,7 +23,10 @@ def dismiss_until(driver, is_done, timeout=30):
             return acted
         buttons = driver.find_elements(*CONTINUE) or driver.find_elements(*ALLOW)
         if buttons:
-            buttons[0].click()
+            try:
+                buttons[0].click()
+            except StaleElementReferenceException:  # dialog went away between find and click: look again
+                continue
             acted += 1
             time.sleep(1)
         else:

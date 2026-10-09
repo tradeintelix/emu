@@ -3,10 +3,12 @@ import time
 from config.settings import PHONE, PHONE_COUNTRY, require
 from core.countries import calling_code
 from core.permissions import allow_permissions_until
-from targets.apps.telegram.pages.code_page import CodePage, ConfirmNumberDialog
+from targets.apps.telegram.pages.code_page import CodePage, ConfirmNumberDialog, EmailPage
 from targets.apps.telegram.pages.onboarding_page import OnboardingPage
 from targets.apps.telegram.pages.permissions import dismiss_until
 from targets.apps.telegram.pages.phone_page import PhonePage
+
+DUMMY_EMAIL = "test@example.com"  # reserved domain: nobody receives the code Telegram sends there
 
 
 def test_login_with_phone_number(steps):
@@ -29,7 +31,7 @@ def test_login_with_phone_number(steps):
         with_cc = "91" + digits[-10:]  # bare number, no country = India
 
     onboard, phone_page = OnboardingPage(steps.driver), PhonePage(steps.driver)
-    confirm, code = ConfirmNumberDialog(steps.driver), CodePage(steps.driver)
+    confirm, code, email = ConfirmNumberDialog(steps.driver), CodePage(steps.driver), EmailPage(steps.driver)
 
     with steps.step("Wait for Welcome screen"):
         allow_permissions_until(steps.driver, onboard.is_welcome_open)
@@ -49,7 +51,10 @@ def test_login_with_phone_number(steps):
     with steps.step("Confirm the number"):
         confirm.confirm_if_present()
     with steps.step("Dismiss the call-log permission explainer"):
-        dismiss_until(steps.driver, code.is_open)
+        dismiss_until(steps.driver, lambda: code.is_open() or email.is_open())
+    if email.is_open():
+        with steps.step("Enter dummy email"):
+            email.submit(DUMMY_EMAIL)
     with steps.step("Wait for verification screen"):
         print(f"Verification screen: {code.wait_until_open()}", flush=True)
     with steps.step("Wait 5s on the verification screen"):

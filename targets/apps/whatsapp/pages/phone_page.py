@@ -51,4 +51,5 @@ class PhonePage(BasePage):
         assert typed == national_number, f"Number field holds {typed!r}, expected {national_number!r}"
 
     def tap_next(self):
-        self.click(self.NEXT)
+        # NEXT drops injected taps (Appium, `adb input`) without any error; only a hardware touch works
+        self.hardware_tap(self.NEXT)

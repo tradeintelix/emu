@@ -47,3 +47,19 @@ class CodePage(BasePage):
             raise AssertionError(f"Verification screen did not appear. Page shows: {texts[:15]}") from None
         headers = self.driver.find_elements(*self.HEADER)
         return headers[0].text if headers else ""
+
+
+class EmailPage(BasePage):
+    """'Add Email': Telegram asks for a login email before it sends the code, for some numbers.
+    Located by its title and the screen's only text field (no ids known)."""
+
+    TITLE = (AppiumBy.XPATH, '//*[@text="Add Email"]')
+    FIELD = (AppiumBy.CLASS_NAME, "android.widget.EditText")
+    DONE = (AppiumBy.ACCESSIBILITY_ID, "Done")  # the blue arrow; the keyboard's Enter doesn't submit
+
+    def is_open(self):
+        return bool(self.driver.find_elements(*self.TITLE))
+
+    def submit(self, email):
+        self.fill(self.FIELD, email)
+        self.click(self.DONE)

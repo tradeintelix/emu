@@ -7,6 +7,9 @@
     python run.py --web uber --country us        # runs the flow through a US residential exit IP
                                                   # (Bright Data; see core/web/residential_proxy.py)
     python run.py --app indrive --phone-country Pakistan --phone 3345333345   # country + number per run
+    python run.py --app spotify --phone-country India --numbers numbers.csv --workers 3
+                                                  # a batch: every CSV number, on 3 emulators in parallel
+                                                  # (core/orchestrator.py; needs MongoDB, Redis, SMPP service)
 """
 import argparse
 import os
@@ -35,6 +38,9 @@ def main():
                      help="country of the phone number, as named in the app's picker (e.g. Pakistan)")
     ap.add_argument("--phone", metavar="NUMBER",
                      help="phone number for this run, without the country code (e.g. 3345333345)")
+    ap.add_argument("--numbers", metavar="CSV",
+                     help="run the app flow for every number in this CSV (first column), in parallel")
+    ap.add_argument("--workers", type=int, metavar="N", help="parallel emulators for --numbers (default: WORKERS)")
     args, pytest_args = ap.parse_known_args()
 
     if args.list:
@@ -45,6 +51,13 @@ def main():
     kind, name = ("app", args.app) if args.app else ("web", args.web)
     if name not in find_targets(kind):
         sys.exit(f"Unknown {kind} '{name}'. Available: {', '.join(find_targets(kind)) or '(none)'}")
+
+    if args.numbers:
+        if kind != "app" or not args.phone_country:
+            sys.exit("--numbers needs --app <name> and --phone-country <name>")
+        from config.settings import WORKERS
+        from core.orchestrator import run_batch
+        return run_batch(name, args.numbers, args.phone_country, args.workers or WORKERS)
 
     env = os.environ.copy()
     if args.country:

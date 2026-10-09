@@ -33,8 +33,8 @@ def steps(request):
     driver = create_browser(solve_captcha=cfg["solve_captcha"], country=cfg["country"])
     rec = StepRecorder(driver, target_dir / "reports" / time.strftime("%Y%m%d-%H%M%S"))
     rec.solve_captcha = cfg["solve_captcha"]
-    col, rec.result_id = results.start("web", target_dir.name)
+    rec.attempt = results.attempt_for_run("web", target_dir.name)
     yield rec
-    results.finish(col, rec.result_id, hasattr(request.node, "rep_call") and request.node.rep_call.passed)
+    results.finish_attempt(rec.attempt, hasattr(request.node, "rep_call") and request.node.rep_call.passed)
     rec.finish()
     driver.quit()

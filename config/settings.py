@@ -18,7 +18,7 @@ def require(name):
     return value
 
 
-# MongoDB holding one document per test run (core/results.py): DBs "Apps" and "Web".
+# MongoDB: numbers and attempts (core/results.py), DBs "Apps" and "Web".
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 
 # SMPP provider (core/smpp_listener.py). Blank until the provider sends the details.
@@ -28,6 +28,15 @@ SMPP_SYSTEM_ID = os.getenv("SMPP_SYSTEM_ID", "")
 SMPP_PASSWORD = os.getenv("SMPP_PASSWORD", "")
 SMPP_BIND = os.getenv("SMPP_BIND", "transceiver")  # transceiver | receiver
 SMPP_TLS = os.getenv("SMPP_TLS", "0") == "1"
+
+# Redis Pub/Sub channel carrying OTP decisions from the SMPP service to every worker (core/otp.py).
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# Parallel batches (core/orchestrator.py). Seconds unless noted.
+WORKERS = int(os.getenv("WORKERS", "3"))  # emulator slots; 3 fits 8 vCPU
+OTP_WAIT_TIMEOUT = int(os.getenv("OTP_WAIT_TIMEOUT", "90"))  # wait for the SMPP decision
+CLAIM_LEASE = int(os.getenv("CLAIM_LEASE", "120"))  # a claimed number frees itself if its worker stops renewing
+RUN_TIMEOUT = int(os.getenv("RUN_TIMEOUT", "600"))  # one number's whole test run, then it is killed
 
 APPIUM_URL =os.getenv("APPIUM_URL", "http://127.0.0.1:4723")
 

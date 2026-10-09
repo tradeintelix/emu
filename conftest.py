@@ -19,6 +19,6 @@ def driver():
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item, call):
-    """Exposes the test outcome to fixtures as item.rep_call (used by core/results.py)."""
+    """Exposes the test outcome to fixtures as item.rep_call (used by the target conftests to record PASS/FAIL)."""
     report = (yield).get_result()
     setattr(item, "rep_" + report.when, report)
