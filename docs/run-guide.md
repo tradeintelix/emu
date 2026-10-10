@@ -141,23 +141,38 @@ and restart the SMPP service if it is running: `systemctl restart emu-smpp`.
 |---|---|---|---|
 | MongoDB | `systemctl status mongod` | `systemctl restart mongod` | `journalctl -u mongod` |
 | Redis | `systemctl status redis-server` | `systemctl restart redis-server` | `journalctl -u redis-server` |
-| SMPP service | `systemctl status emu-smpp` | `systemctl restart emu-smpp` | `journalctl -u emu-smpp -f` |
+| SMPP server | `systemctl status emu-smpp` | `systemctl restart emu-smpp` | `journalctl -u emu-smpp -f` |
 
-### Turn on the SMPP service (once the provider's details arrive)
+### SMPP server (the provider binds to us)
 
-1. Edit `/opt/emu/.env`: `SMPP_HOST`, `SMPP_PORT`, `SMPP_SYSTEM_ID`, `SMPP_PASSWORD`,
-   `SMPP_BIND` (`transceiver` or `receiver`), `SMPP_TLS` (`1` if required).
-2. `systemctl enable --now emu-smpp`
-3. `journalctl -u emu-smpp -f` and look for `[smpp] bound to <host>:<port>`. Reconnects show as
-   `connection lost ..., retry in Ns`.
+We are the SMPP server; the provider is the client. `emu-smpp` runs `python -m smpp_server.server`,
+listening on `SMPP_SERVER_PORT` (2775), and starts at boot.
 
-Run it in the foreground instead, for debugging: `systemctl stop emu-smpp && .venv/bin/python -m core.smpp_listener`.
+- Credentials we give the provider: `SMPP_SERVER_SYSTEM_ID` / `SMPP_SERVER_PASSWORD` in `/opt/emu/.env`
+  (password max 8 characters). After changing them: `systemctl restart emu-smpp`.
+- Restrict who may connect: `SMPP_ALLOWED_IPS=1.2.3.4,5.6.7.8` in `.env`, then restart.
+- Live traffic: `journalctl -u emu-smpp -f` (connects, binds, every PDU; passwords are masked).
+- Stored traffic: `mongosh SMPP --eval 'db.pdus.find().sort({at:-1}).limit(20)'`
+- What it does today: bind (transmitter / receiver / transceiver) with our credentials, enquire_link,
+  unbind, and accepts `submit_sm` with our own message_id. OTP decisions for the automation are not
+  wired to it yet.
+
+Test a bind yourself from any machine with the venv:
+
+```bash
+python - <<'PY'
+import smpplib.client
+c = smpplib.client.Client("<server-ip>", 2775, allow_unknown_opt_params=True)
+c.connect(); c.bind_transceiver(system_id="<system_id>", password="<password>"); print("bound")
+c.unbind(); c.disconnect()
+PY
+```
 
 ### Watch the OTP flow live
 
 ```bash
 redis-cli subscribe otp-events            # every decision the SMPP service publishes
-journalctl -u emu-smpp -f                 # receipts and SMS as they arrive
+journalctl -u emu-smpp -f                 # the provider's binds and messages as they arrive
 ```
 
 ## 6. Checking results in MongoDB
@@ -212,7 +227,8 @@ python -m pytest tests/unit -q           # no services needed (in-memory MongoDB
 |---|---|
 | `[batch] MongoDB unreachable at MONGO_URI` | `systemctl start mongod`, check `MONGO_URI` in `.env` |
 | `[otp] Redis unavailable ..., polling MongoDB instead` | `systemctl start redis-server`; the run still works through MongoDB |
-| Spotify run fails with `No SMPP decision before OTP_WAIT_TIMEOUT` | SMPP service not running or not bound (`journalctl -u emu-smpp`), or the provider sent no receipt for the number |
+| Spotify run fails with `No SMPP decision before OTP_WAIT_TIMEOUT` | The OTP decision is not wired to the SMPP server yet; once it is, check `journalctl -u emu-smpp` for the provider's traffic |
+| Provider can't bind | `systemctl status emu-smpp`; `journalctl -u emu-smpp` shows `refused <ip>` (not in `SMPP_ALLOWED_IPS`), `status=0xe` (wrong password) or `0xf` (wrong system_id) |
 | `<package> is not installed on emulator-...` | Install the app on the golden AVD (section 7) |
 | Appium session errors | Logs in `reports/appium-<port>.log` (port 4723 + slot number) |
 | Emulator never boots | `emulator -accel-check` must say KVM is usable; check free RAM with `free -g` |

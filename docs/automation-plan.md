@@ -373,17 +373,23 @@ CPU is the limit: start at **3 slots**, try 4 after measuring. Requirements:
 - MongoDB and Redis reachable from workers and the SMPP service.
 - SMPP service under a supervisor (systemd) so it restarts.
 - Static public outbound IP whitelisted by the SMPP provider; outbound access to their SMPP port.
-  We are the SMPP client and bind outbound, so no listening port is needed on our side.
+  We are the SMPP server: port 2775 is open for the provider's bind (restrict it with `SMPP_ALLOWED_IPS`).
 
 ## 9. SMPP connection
 
-**Our role: client (ESME), confirmed.** Our SMPP service connects out and binds to the provider's SMSC.
-We run no SMPP server and open no listening port; the provider only whitelists our server IP.
+**Our role: SMPP server (SMSC side), confirmed by the provider.** The provider binds to us as the client
+(ESME) at our IP and port 2775 with a `system_id` / password we issue. Code: `smpp_server/` (run as
+`python -m smpp_server.server`, systemd unit `emu-smpp`).
 
-From the provider: host, port (plain and TLS), `system_id`, password, bind type (transceiver or
-receiver), whether delivery receipts and inbound SMS arrive on the same bind, whether a `message_id`
-can be tied to each attempt. Config goes in `.env` as `SMPP_HOST`, `SMPP_PORT`, `SMPP_SYSTEM_ID`,
-`SMPP_PASSWORD`, `SMPP_BIND`, `SMPP_TLS`.
+Built and deployed: bind (transmitter / receiver / transceiver) with our credentials, enquire_link,
+unbind, `submit_sm` accepted with our own message_id, generic_nack for anything else, every PDU logged
+to the journal and to MongoDB `SMPP.pdus`.
+
+Still open with the provider, and needed before the OTP decision is wired onto the server:
+how the OTP and the delivery state reach us (presumably `submit_sm` carrying the OTP for our numbers),
+whether they expect delivery receipts (`deliver_sm`) back from us and with which states, and their
+source IPs for `SMPP_ALLOWED_IPS`. `core/smpp_listener.py` (client mode) is superseded and gets
+replaced by that wiring.
 
 ## 10. Configuration
 

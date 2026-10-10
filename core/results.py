@@ -28,6 +28,8 @@ OPEN = [CLAIMED, OTP_REQUESTED, WAITING_SMPP, SMPP_UNDELIVERED]
 
 Attempt = namedtuple("Attempt", "col attempt_id phone")
 
+OTP_CHANNEL = "otp-events"  # Redis channel: SMPP server -> workers (also core/otp.py)
+
 _client = None
 
 
@@ -58,6 +60,20 @@ def attempt_collections():
         for name in db.list_collection_names():
             if not name.endswith("_numbers"):
                 yield db[name]
+
+
+def match_number(number):
+    """Newest still-open attempt for a phone number, across every attempts collection, or None.
+    The provider sends the number with its country code (923294314088); attempts store the national
+    number (3294314088), so we match on the trailing digits."""
+    digits = "".join(c for c in number if c.isdigit())
+    tails = list({digits[-n:] for n in range(6, 15) if len(digits) >= n})
+    best = None
+    for col in attempt_collections():
+        doc = col.find_one({"phone": {"$in": tails}, "status": {"$in": OPEN}}, sort=[("created_at", -1)])
+        if doc and (best is None or doc["created_at"] > best[1]["created_at"]):
+            best = (col, doc)
+    return best
 
 
 def ensure_indexes(kind, target):

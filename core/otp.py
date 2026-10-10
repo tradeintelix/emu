@@ -10,7 +10,7 @@ import time
 
 from config.settings import OTP_WAIT_TIMEOUT, REDIS_URL
 from core import results as R
-from core.smpp_listener import CHANNEL
+from core.results import OTP_CHANNEL as CHANNEL
 
 
 class Waiter:

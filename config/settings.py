@@ -21,12 +21,21 @@ def require(name):
 # MongoDB: numbers and attempts (core/results.py), DBs "Apps" and "Web".
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 
-# SMPP provider (core/smpp_listener.py). Blank until the provider sends the details.
+# SMPP server (smpp_server/): we are the SMSC side and the provider binds to us with these credentials.
+SMPP_SERVER_HOST = os.getenv("SMPP_SERVER_HOST", "0.0.0.0")
+SMPP_SERVER_PORT = int(os.getenv("SMPP_SERVER_PORT", "2775"))
+SMPP_SERVER_SYSTEM_ID = os.getenv("SMPP_SERVER_SYSTEM_ID", "")  # max 15 characters
+SMPP_SERVER_PASSWORD = os.getenv("SMPP_SERVER_PASSWORD", "")  # max 8 characters (SMPP 3.4)
+# Comma-separated provider IPs allowed to connect; blank = any IP (credentials still required).
+SMPP_ALLOWED_IPS = {ip.strip() for ip in os.getenv("SMPP_ALLOWED_IPS", "").split(",") if ip.strip()}
+
+# Superseded client mode (core/smpp_listener.py binding out to a provider); kept until the OTP
+# decision logic moves onto smpp_server/.
 SMPP_HOST = os.getenv("SMPP_HOST", "")
 SMPP_PORT = os.getenv("SMPP_PORT", "")
 SMPP_SYSTEM_ID = os.getenv("SMPP_SYSTEM_ID", "")
 SMPP_PASSWORD = os.getenv("SMPP_PASSWORD", "")
-SMPP_BIND = os.getenv("SMPP_BIND", "transceiver")  # transceiver | receiver
+SMPP_BIND = os.getenv("SMPP_BIND", "transceiver")
 SMPP_TLS = os.getenv("SMPP_TLS", "0") == "1"
 
 # Redis Pub/Sub channel carrying OTP decisions from the SMPP service to every worker (core/otp.py).
