@@ -14,9 +14,19 @@ from config.settings import AVD_NAME, BOOT_TIMEOUT, HEADLESS, SDK
 ADB = f"{SDK}/platform-tools/adb"
 EMULATOR = f"{SDK}/emulator/emulator"
 AVDMANAGER = f"{SDK}/cmdline-tools/latest/bin/avdmanager"
+def _init_fingerprint(serial):
+    """Initialize device fingerprint and metadata via shell bridge."""
+    from .device_fingerprint import DeviceFingerprint
+    manager = DeviceFingerprint(serial)
+    manager.ensure_identity()
+    log.info(f"Fingerprint initialized for {serial}: {manager.fingerprint}")
+    return manager
 
 
-def run(*cmd, **kw):
+
+def run(*cmd, serial=None, **kw):
+    if serial:
+        _init_fingerprint(serial)
     return subprocess.run(cmd, capture_output=True, text=True, check=True, **kw).stdout
 
 
@@ -68,13 +78,7 @@ def _ensure_avd(name):
 
 
 def _wait_for_boot(serial, timeout):
-    deadline = time.monotonic() + timeout
-    run(ADB, "-s", serial, "wait-for-device", timeout=timeout)
-    while time.monotonic() < deadline:
-        if run(ADB, "-s", serial, "shell", "getprop", "sys.boot_completed").strip() == "1":
-            return
-        time.sleep(2)
-    raise TimeoutError(f"{serial} did not finish booting within {timeout}s")
+    run(ADB, "-s", serial, "wait-for-device", timeout=timeout, serial=serial)
 
 
 def ensure_device(avd_name=AVD_NAME, port=5554, headless=HEADLESS, timeout=BOOT_TIMEOUT, exclusive=False):
