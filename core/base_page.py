@@ -53,6 +53,17 @@ class BasePage:
         r = self.wait.until(EC.visibility_of_element_located(locator)).rect
         console_tap(self.driver.capabilities["udid"], r["x"] + r["width"] // 2, r["y"] + r["height"] // 2)
 
+    def swipe_up_within(self, locator, duration_ms=300):
+        """Swipes from the bottom to the top of locator's own area (scrolls its content down a
+        screenful), via core.emulator.swipe. See that function for why: Appium's own gesture
+        command silently no-ops on some custom scroll views."""
+        from core.emulator import swipe
+        r = self.wait.until(EC.visibility_of_element_located(locator)).rect
+        x = r["x"] + r["width"] // 2
+        top = r["y"] + int(r["height"] * 0.9)
+        bottom = r["y"] + int(r["height"] * 0.1)
+        swipe(self.driver.capabilities["udid"], x, top, x, bottom, duration_ms)
+
     def fill(self, locator, text):
         el = self.wait.until(EC.visibility_of_element_located(locator))
         el.clear()

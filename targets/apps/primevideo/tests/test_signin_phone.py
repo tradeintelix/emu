@@ -16,8 +16,10 @@ def test_signin_with_phone_number(steps):
       --phone-country Pakistan --phone 3345333345   (code from core/countries.json)
       --phone +923345333345                          (international format)
       --phone 7420870251                             (bare = India)"""
-    # No country picker: Amazon reads '+<code><number>' as that country, and a bare number as
-    # Indian (the app's region). A bare foreign number would therefore reach a stranger in India.
+    # The sign-in field itself has no picker: Amazon reads '+<code><number>' as that country, and
+    # a bare number as Indian (the app's region) - so a bare foreign number would reach a stranger
+    # in India. If the number turns out unregistered, signin.complete_create_account() hits a
+    # second, separate phone field that DOES have a country picker (see that method).
     raw = (PHONE or require("PRIMEVIDEO_PHONE")).strip()
     digits = "".join(c for c in raw if c.isdigit())
     if raw.startswith("+"):
@@ -41,7 +43,7 @@ def test_signin_with_phone_number(steps):
     with steps.step("Tap Continue"):
         signin.tap_continue()
     with steps.step("Create account if asked"):
-        print(f"Create-account page filled: {signin.complete_create_account()}", flush=True)
+        print(f"Create-account page filled: {signin.complete_create_account(phone)}", flush=True)
     with steps.step("Wait for OTP screen"):
         print(f"OTP screen: code sent to {otp.wait_until_open()}", flush=True)
     with steps.step("Wait 5s on the OTP screen"):

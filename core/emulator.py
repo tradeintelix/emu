@@ -31,6 +31,13 @@ def console_tap(serial, x, y):
     run(ADB, "-s", serial, "emu", "event", "mouse", str(x), str(y), "0", "0")
 
 
+def swipe(serial, x1, y1, x2, y2, duration_ms=300):
+    """Swipe (x1, y1) -> (x2, y2) via `adb shell input swipe`: a real touch-driver event, unlike
+    Appium's W3C 'mobile: swipeGesture', which some custom scroll views (Prime Video's country
+    picker) never register at all. Works on an emulator and a real device."""
+    run(ADB, "-s", serial, "shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(duration_ms))
+
+
 def parse_devices(adb_output):
     """Serials of devices in state 'device' from `adb devices` output (offline/unauthorized ignored)."""
     lines = adb_output.strip().splitlines()[1:]  # first line is the "List of devices" header
