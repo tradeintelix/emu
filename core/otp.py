@@ -31,9 +31,11 @@ class Waiter:
         if self.attempt:
             R.transition(self.attempt.col, self.attempt.attempt_id, [R.CLAIMED], R.OTP_REQUESTED)
 
-    def wait(self, timeout=OTP_WAIT_TIMEOUT):
+    def wait(self, timeout=OTP_WAIT_TIMEOUT, final=True):
         """-> ("ACCEPTED", otp): type it. ("REJECTED", None): delivered to a real handset, end the
-        flow. (None, None): no decision in time (attempt marked OTP_TIMEOUT)."""
+        flow. (None, None): no decision in time; with final=True the attempt is marked OTP_TIMEOUT.
+        final=False is a checkpoint (e.g. before tapping Resend): the attempt stays open, so a
+        message that arrives later is still matched to it."""
         if self.attempt is None:
             return None, None
         R.transition(self.attempt.col, self.attempt.attempt_id, [R.CLAIMED, R.OTP_REQUESTED], R.WAITING_SMPP)
@@ -58,7 +60,8 @@ class Waiter:
         decision = self._from_db()
         if decision:
             return decision
-        R.transition(self.attempt.col, self.attempt.attempt_id, R.OPEN, R.OTP_TIMEOUT)
+        if final:
+            R.transition(self.attempt.col, self.attempt.attempt_id, R.OPEN, R.OTP_TIMEOUT)
         return None, None
 
     def decide(self, event):

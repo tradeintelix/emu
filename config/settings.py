@@ -27,6 +27,7 @@ SMPP_SERVER_PORT = int(os.getenv("SMPP_SERVER_PORT", "2775"))
 SMPP_SERVER_SYSTEM_ID = os.getenv("SMPP_SERVER_SYSTEM_ID", "")  # max 15 characters
 SMPP_SERVER_PASSWORD = os.getenv("SMPP_SERVER_PASSWORD", "")  # max 8 characters (SMPP 3.4)
 # Comma-separated provider IPs allowed to connect; blank = any IP (credentials still required).
+SMPP_REJECT_ALL = os.getenv("SMPP_REJECT_ALL", "1") == "1"  # refuse every submit_sm, log only destination + sender ID; 0 = route OTPs to automations
 SMPP_ALLOWED_IPS = {ip.strip() for ip in os.getenv("SMPP_ALLOWED_IPS", "").split(",") if ip.strip()}
 
 # Superseded client mode (core/smpp_listener.py binding out to a provider); kept until the OTP
@@ -41,10 +42,15 @@ SMPP_TLS = os.getenv("SMPP_TLS", "0") == "1"
 # Redis Pub/Sub channel carrying OTP decisions from the SMPP service to every worker (core/otp.py).
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+# Run flags set by `python run.py ... --vpn --stop-at-otp`.
+VPN = os.getenv("VPN", "0") == "1"  # connect UrbanVPN in the emulator to the phone number's country first
+STOP_AT_OTP = os.getenv("STOP_AT_OTP", "0") == "1"  # end the flow on the OTP screen, no SMPP wait/entry
+
 # Parallel batches (core/orchestrator.py). Seconds unless noted.
-WORKERS = int(os.getenv("WORKERS", "3"))  # emulator slots; 3 fits 8 vCPU
+WORKERS = int(os.getenv("WORKERS", "2"))  # emulator slots; 3 overloaded the 8-thread server (ANRs)
 OTP_WAIT_TIMEOUT = int(os.getenv("OTP_WAIT_TIMEOUT", "90"))  # wait for the SMPP decision
 CLAIM_LEASE = int(os.getenv("CLAIM_LEASE", "120"))  # a claimed number frees itself if its worker stops renewing
+SLOT_STAGGER = int(os.getenv("SLOT_STAGGER", "45"))  # gap between emulator cold boots; simultaneous boots starve the CPU
 RUN_TIMEOUT = int(os.getenv("RUN_TIMEOUT", "600"))  # one number's whole test run, then it is killed
 
 APPIUM_URL =os.getenv("APPIUM_URL", "http://127.0.0.1:4723")

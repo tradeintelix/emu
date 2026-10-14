@@ -1,3 +1,8 @@
+import random
+import secrets
+import string
+import time
+
 from appium.webdriver.common.appiumby import AppiumBy
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -36,3 +41,28 @@ class SignInPage(BasePage):
 
     def tap_continue(self):
         self.click(self.CONTINUE)
+
+    NAME = _html_id("ap_customer_name")
+    PASSWORD = _html_id("ap_password")
+    VERIFY = (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textMatches("(?i)verify mobile number")')
+
+    def complete_create_account(self, timeout=20):
+        """If Continue landed on 'Create account' (number not registered), fills a random name and
+        password and taps 'Verify mobile number'. Returns True if it did, False if the page never showed."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.driver.find_elements(*self.NAME):
+                break
+            time.sleep(1)
+        else:
+            return False
+        first = random.choice(["Aarav", "Liam", "Maya", "Noah", "Zara", "Ethan", "Nina", "Omar"])
+        last = random.choice(["Smith", "Khan", "Patel", "Moyo", "Brown", "Ncube", "Lee", "Dube"])
+        self.fill(self.NAME, f"{first} {last}")
+        # ponytail: random letters+digits satisfies the 6+ char rule; the password is never kept
+        self.fill(self.PASSWORD, "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12)) + "!1aA")
+        try:
+            self.click(self.VERIFY)
+        except Exception:
+            self.click(self.CONTINUE)  # the button's html id is also 'continue'
+        return True

@@ -3,6 +3,7 @@ import time
 
 import pytest
 
+from config.settings import PHONE_COUNTRY, VPN
 from core import otp, results, slot
 
 
@@ -32,6 +33,11 @@ def steps(request):
 
     ensure_appium(slot.APPIUM)
     driver = create_driver(serial, package, slot.APPIUM, slot.SYSTEM_PORT)
+    if VPN:
+        from core import vpn
+        country = PHONE_COUNTRY or getattr(cfg, "COUNTRY", "")
+        # raises VpnError when it can't connect: the run fails instead of using the server's own IP
+        vpn.connect(driver, country)
     # launched through Appium rather than core.app.launch_app: that one waits for the app to hold
     # window focus, which a first-launch permission dialog (owned by the OS) takes away
     driver.terminate_app(package)  # a still-running app would resume mid-flow instead of on its first screen

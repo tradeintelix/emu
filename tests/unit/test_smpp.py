@@ -163,3 +163,23 @@ def test_batch_runs_every_number_once_and_counts_failures(monkeypatch, tmp_path)
     results = sorted(d["result"] for d in R.attempts("app", "spotify").find())
     assert results == ["FAIL", "PASS", "PASS"]
     assert {d["status"] for d in R.numbers("app", "spotify").find()} == {R.COMPLETE}
+
+
+def test_nonfinal_wait_keeps_the_attempt_open_for_a_later_message():
+    """The 30s wait before Resend must not mark OTP_TIMEOUT, or the SMPP server stops matching it."""
+    a = _attempt("9876511111")
+    w = O.Waiter.__new__(O.Waiter)
+    w.attempt, w.pubsub = a, None
+    assert w.wait(timeout=0.1, final=False) == (None, None)
+    assert _doc(a)["status"] == R.WAITING_SMPP
+    assert R.match_number("919876511111") is not None  # still ours
+    assert w.wait(timeout=0.1) == (None, None)  # the final wait does time out
+    assert _doc(a)["status"] == R.OTP_TIMEOUT
+
+
+def test_infra_crash_is_recognised_in_a_run_log(tmp_path):
+    from core import orchestrator
+    crashed, plain = tmp_path / "a.log", tmp_path / "b.log"
+    crashed.write_text("E  WebDriverException: Could not proxy command to the remote server. socket hang up")
+    plain.write_text("E  NoSuchElementError: Phone number option not found")
+    assert orchestrator._infra_crash(crashed) and not orchestrator._infra_crash(plain)

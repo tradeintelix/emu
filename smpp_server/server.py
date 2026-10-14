@@ -4,14 +4,14 @@
 
 Accepts binds with our credentials (SMPP_SERVER_SYSTEM_ID / SMPP_SERVER_PASSWORD), answers
 enquire_link and unbind, accepts submit_sm with our own message_id, and logs every PDU to the
-journal and to MongoDB (SMPP.pdus), so the provider's real traffic is on record. The OTP decisions
+journal; MongoDB (SMPP.rejected) gets one record per rejected message, nothing else. The OTP decisions
 for the automation are wired in later (docs/automation-plan.md)."""
 import asyncio
 import hmac
 import time
 import uuid
 
-from config.settings import (REDIS_URL, SMPP_ALLOWED_IPS, SMPP_SERVER_HOST, SMPP_SERVER_PASSWORD,
+from config.settings import (REDIS_URL, SMPP_ALLOWED_IPS, SMPP_REJECT_ALL, SMPP_SERVER_HOST, SMPP_SERVER_PASSWORD,
                              SMPP_SERVER_PORT, SMPP_SERVER_SYSTEM_ID)
 from smpp_server import pdu as P
 from smpp_server import router
@@ -27,7 +27,7 @@ def _store(record):
     """Best effort: a down MongoDB must never break a live bind."""
     try:
         from core.results import client
-        client()["SMPP"]["pdus"].insert_one(record)
+        client()["SMPP"]["rejected"].insert_one(record)
     except Exception as e:
         print(f"[smpp-server] MongoDB log failed: {type(e).__name__}", flush=True)
 
@@ -48,9 +48,6 @@ class Session:
     async def log(self, direction, command_id, status, sequence, fields=None):
         line = f"[smpp-server] {self.peer} {direction} {P.name(command_id)} seq={sequence} status={status:#x}"
         print(line + (f" {fields}" if fields else ""), flush=True)
-        await asyncio.to_thread(_store, {
-            "at": time.time(), "peer": self.peer, "system_id": self.system_id, "direction": direction,
-            "command": P.name(command_id), "command_status": status, "sequence": sequence, "fields": fields})
 
     async def send(self, command_id, status, sequence, body=b"", fields=None):
         self.writer.write(P.encode(command_id, status, sequence, body))
@@ -118,6 +115,15 @@ class Session:
         except (ValueError, IndexError):
             await self.log("in", P.SUBMIT_SM, P.ESME_ROK, sequence, {"body_hex": body.hex()})
             await self.send(P.SUBMIT_SM | P.RESP, P.ESME_RINVMSGLEN, sequence)
+            return True
+        if SMPP_REJECT_ALL:  # nothing is accepted: the number, the sender ID and the text are logged
+            seen = {"destination_addr": f["destination_addr"], "source_addr": f["source_addr"], "text": f["text"]}
+            print(f"[smpp-server] REJECTED to={seen['destination_addr']} sid={seen['source_addr']} text={seen['text']!r}",
+                  flush=True)
+            await self.log("in", P.SUBMIT_SM, P.ESME_ROK, sequence, seen)
+            await self.send(P.SUBMIT_SM | P.RESP, P.ESME_RSUBMITFAIL, sequence)
+            await asyncio.to_thread(_store, {"at": time.time(), "peer": self.peer, "system_id": self.system_id,
+                                             **seen, "status": "REJECTED", "command_status": P.ESME_RSUBMITFAIL})
             return True
         message_id = uuid.uuid4().hex[:16]
         await self.log("in", P.SUBMIT_SM, P.ESME_ROK, sequence, f)

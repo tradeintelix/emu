@@ -17,7 +17,7 @@ import time
 import uuid
 from pathlib import Path
 
-from config.settings import RUN_TIMEOUT
+from config.settings import RUN_TIMEOUT, SLOT_STAGGER
 from core import results, slot
 from core.countries import calling_code
 from core.emulator import kill_emulator
@@ -49,7 +49,7 @@ def run_batch(target, csv_path, country, workers):
                for i in range(workers)]
     for t in threads:
         t.start()
-        time.sleep(5)  # stagger the cold boots; all at once starves the CPU
+        time.sleep(SLOT_STAGGER)  # stagger the cold boots; all at once starves the CPU
     for t in threads:
         t.join()
 
@@ -59,6 +59,14 @@ def run_batch(target, csv_path, country, workers):
         {"attempt_id": {"$in": final}}, {"result": 1}))
     print(f"[batch] {batch_id} done: {dict(counts)}", flush=True)
     return 0 if set(counts) <= {"PASS"} else 1
+
+
+def _infra_crash(log_path):
+    """True when the run died because Appium's UiAutomator2 helper on the emulator crashed, not
+    because the app flow failed. Such a failure says nothing about the number, so it's worth one retry."""
+    text = log_path.read_text(errors="replace")
+    return any(m in text for m in ("Could not proxy command to the remote server",
+                                   "instrumentation process is not running", "Process crashed"))
 
 
 def _worker(target, batch_id, country, i, log_dir):
@@ -72,18 +80,25 @@ def _worker(target, batch_id, country, i, log_dir):
         phone = row["phone"]
         env = {**os.environ, "PHONE": phone, "PHONE_COUNTRY": country, "SLOT": str(i), "ATTEMPT_ID": attempt_id}
         started = time.monotonic()
-        with open(log_dir / f"slot{i}-{phone}.log", "w") as log:
-            proc = subprocess.Popen([sys.executable, "-m", "pytest", "-s", str(tests)],
-                                    cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
-            while True:
-                results.renew_lease("app", target, batch_id, phone, attempt_id)
-                try:
-                    proc.wait(timeout=10)
-                    break
-                except subprocess.TimeoutExpired:
-                    if time.monotonic() - started > RUN_TIMEOUT:
-                        print(f"[slot{i}] {phone}: no result after {RUN_TIMEOUT}s, killed", flush=True)
-                        proc.kill()
+        log_path = log_dir / f"slot{i}-{phone}.log"
+        for run_no in (1, 2):
+            run_started = time.monotonic()  # RUN_TIMEOUT applies to each run, so a retry gets the full time
+            with open(log_path, "w" if run_no == 1 else "a") as log:
+                proc = subprocess.Popen([sys.executable, "-m", "pytest", "-s", str(tests)],
+                                        cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
+                while True:
+                    results.renew_lease("app", target, batch_id, phone, attempt_id)
+                    try:
+                        proc.wait(timeout=10)
+                        break
+                    except subprocess.TimeoutExpired:
+                        if time.monotonic() - run_started > RUN_TIMEOUT:
+                            print(f"[slot{i}] {phone}: no result after {RUN_TIMEOUT}s, killed", flush=True)
+                            proc.kill()
+            if proc.returncode == 0 or run_no == 2 or not _infra_crash(log_path):
+                break
+            print(f"[slot{i}] {phone}: Appium helper crashed on the emulator, retrying once", flush=True)
+            kill_emulator(serial)  # the retry boots a clean emulator
         results.fail_unfinished("app", target, attempt_id)
         results.complete_number("app", target, batch_id, phone, attempt_id)
         kill_emulator(serial)

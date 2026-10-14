@@ -31,6 +31,7 @@ def smsc(monkeypatch):
     monkeypatch.setattr(S, "SMPP_SERVER_SYSTEM_ID", "emutest")
     monkeypatch.setattr(S, "SMPP_SERVER_PASSWORD", "pw123456")
     monkeypatch.setattr(S, "BIND_FAIL_DELAY", 0)
+    monkeypatch.setattr(S, "SMPP_REJECT_ALL", False)  # routing tests; reject mode has its own test
     monkeypatch.setattr(R, "_client", mongomock.MongoClient())
     stored, redis = [], FakeRedis()
     monkeypatch.setattr(S, "_store", stored.append)
@@ -69,18 +70,8 @@ def test_bind_submit_enquire_unbind(smsc):
     c.read_once()  # enquire_link_resp
     c.unbind()
     c.disconnect()
-    deadline = time.monotonic() + 2  # the server logs right after replying
-    while "unbind_resp" not in [r["command"] for r in stored] and time.monotonic() < deadline:
-        time.sleep(0.01)
-
     assert len(ids) == 1 and len(ids[0]) == 16
-    submit = next(r for r in stored if r["command"] == "submit_sm")
-    assert submit["fields"]["destination_addr"] == "919876543210"
-    assert submit["fields"]["text"] == "Your code is 482913"
-    commands = [r["command"] for r in stored]
-    assert {"bind_transceiver_resp", "enquire_link_resp", "unbind_resp"} <= set(commands)
-    bind = next(r for r in stored if r["command"] == "bind_transceiver")
-    assert bind["fields"]["password"] == "***"  # never stored
+    assert stored == []  # accepted traffic isn't stored; only rejected messages are
 
 
 @pytest.mark.parametrize("system_id, password, status", [
@@ -173,3 +164,24 @@ def test_unmatched_message_is_logged_only(smsc):
     time.sleep(0.3)  # no attempt matches -> no receipt should arrive
     c.unbind(); c.disconnect()
     assert receipts == [] and redis.events == []
+
+
+def test_reject_all_refuses_and_logs_number_sid_and_text(smsc, monkeypatch):
+    monkeypatch.setattr(S, "SMPP_REJECT_ALL", True)
+    port, stored, redis = smsc
+    col, attempt_id = _seed_attempt()  # even a number with a running automation is refused
+    c = _client(port)
+    c.bind_transceiver(system_id="emutest", password="pw123456")
+    receipts = []
+    c.set_message_received_handler(lambda pdu: receipts.append(pdu))
+    with pytest.raises(smpplib.exceptions.PDUError) as e:
+        c.send_message(source_addr="Spotify", destination_addr="923294314088", short_message=b"Your code is 731902")
+        c.read_once()
+    c.disconnect()
+    assert e.value.args[1] == P.ESME_RSUBMITFAIL
+    assert len(stored) == 1  # one record for the rejected message: no bind, keep-alive or reply lines
+    rec = stored[0]
+    assert (rec["destination_addr"], rec["source_addr"], rec["text"], rec["status"]) == \
+        ("923294314088", "Spotify", "Your code is 731902", "REJECTED")
+    assert receipts == [] and redis.events == []
+    assert col.find_one({"attempt_id": attempt_id})["status"] == R.WAITING_SMPP  # untouched

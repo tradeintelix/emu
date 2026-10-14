@@ -40,6 +40,8 @@ def test_signin_with_phone_number(steps):
         print(f"Number field holds: {signin.enter_phone(phone)}", flush=True)
     with steps.step("Tap Continue"):
         signin.tap_continue()
+    with steps.step("Create account if asked"):
+        print(f"Create-account page filled: {signin.complete_create_account()}", flush=True)
     with steps.step("Wait for OTP screen"):
         print(f"OTP screen: code sent to {otp.wait_until_open()}", flush=True)
     with steps.step("Wait 5s on the OTP screen"):

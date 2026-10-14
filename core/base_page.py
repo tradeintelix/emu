@@ -48,6 +48,8 @@ class BasePage:
         """Taps the element's centre as a hardware touch (emulator only), for buttons that ignore
         injected taps. See core.emulator.console_tap."""
         from core.emulator import console_tap
+        if not self.driver.capabilities["udid"].startswith("emulator-"):
+            return self.wait.until(EC.element_to_be_clickable(locator)).click()  # real phone: ordinary tap
         r = self.wait.until(EC.visibility_of_element_located(locator)).rect
         console_tap(self.driver.capabilities["udid"], r["x"] + r["width"] // 2, r["y"] + r["height"] // 2)
 

@@ -7,6 +7,8 @@
     python run.py --web uber --country us        # runs the flow through a US residential exit IP
                                                   # (Bright Data; see core/web/residential_proxy.py)
     python run.py --app indrive --phone-country Pakistan --phone 3345333345   # country + number per run
+    python run.py --app spotify --phone-country "Saudi Arabia" --numbers numbers.csv --workers 3 --vpn --stop-at-otp
+                                                  # same batch through UrbanVPN, ending on the OTP screen
     python run.py --app spotify --phone-country India --numbers numbers.csv --workers 3
                                                   # a batch: every CSV number, on 3 emulators in parallel
                                                   # (core/orchestrator.py; needs MongoDB, Redis, SMPP service)
@@ -41,7 +43,15 @@ def main():
     ap.add_argument("--numbers", metavar="CSV",
                      help="run the app flow for every number in this CSV (first column), in parallel")
     ap.add_argument("--workers", type=int, metavar="N", help="parallel emulators for --numbers (default: WORKERS)")
+    ap.add_argument("--vpn", action="store_true",
+                     help="connect UrbanVPN inside the emulator to the --phone-country country before the flow")
+    ap.add_argument("--stop-at-otp", action="store_true",
+                     help="end the flow on the OTP screen (no SMPP wait, no OTP entry); reaching it is a PASS")
     args, pytest_args = ap.parse_known_args()
+    if args.vpn:
+        os.environ["VPN"] = "1"  # inherited by the pytest subprocesses
+    if args.stop_at_otp:
+        os.environ["STOP_AT_OTP"] = "1"
 
     if args.list:
         for kind in FOLDER:

@@ -2,7 +2,7 @@ import re
 import time
 
 from appium.webdriver.common.appiumby import AppiumBy
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 
 from core.base_page import BasePage
@@ -43,12 +43,15 @@ class OtpPage(BasePage):
         while time.monotonic() < deadline:
             if "VerifyPhoneNumber" in (self.driver.current_activity or ""):
                 return " | ".join(self._texts()[:4])
-            if self.driver.find_elements(*ConfirmNumberDialog.OK):  # dialog came after the confirm step's wait (slow VPN)
-                self.hardware_tap(ConfirmNumberDialog.OK)
-            elif self.driver.find_elements(*self.METHOD_SHEET):
-                self._choose_sms()
-            elif self.driver.find_elements(*self.VERIFY_ANOTHER_WAY):
-                self.hardware_tap(self.VERIFY_ANOTHER_WAY)
+            try:
+                if self.driver.find_elements(*ConfirmNumberDialog.OK):  # dialog came after the confirm step's wait (slow VPN)
+                    self.hardware_tap(ConfirmNumberDialog.OK)
+                elif self.driver.find_elements(*self.METHOD_SHEET):
+                    self._choose_sms()
+                elif self.driver.find_elements(*self.VERIFY_ANOTHER_WAY):
+                    self.hardware_tap(self.VERIFY_ANOTHER_WAY)
+            except StaleElementReferenceException:
+                continue  # the screen changed under the tap; look again
             time.sleep(1)
         raise AssertionError(f"Code screen did not appear after confirming. Page shows: {self._texts()[:15]}")
 
