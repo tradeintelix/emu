@@ -1,5 +1,3 @@
-import time
-
 from config.settings import PHONE, PHONE_COUNTRY, require
 from core.countries import calling_code
 from core.permissions import allow_permissions_until
@@ -41,8 +39,13 @@ def test_signin_with_phone_number(steps):
     with steps.step("Tap Continue"):
         signin.tap_continue()
     with steps.step("Create account if asked"):
-        print(f"Create-account page filled: {signin.complete_create_account()}", flush=True)
+        print(f"Create-account page filled: {signin.complete_create_account(PHONE_COUNTRY, phone.removeprefix('+' + calling_code(PHONE_COUNTRY)))}", flush=True)
+    steps.otp.otp_requested()
     with steps.step("Wait for OTP screen"):
         print(f"OTP screen: code sent to {otp.wait_until_open()}", flush=True)
-    with steps.step("Wait 5s on the OTP screen"):
-        time.sleep(5)
+    with steps.step("Check whether the SMS arrived"):
+        # SMPP decision (core/otp.py): ACCEPTED = our SMPP server got the SMS; REJECTED = it went to a
+        # real handset; None = nothing in time (or MongoDB/Redis down, so nothing to check against)
+        decision, code = steps.otp.wait()
+        print(f"SMS arrived: {decision} (code {'received' if code else 'none'})", flush=True)
+        assert decision == "ACCEPTED", f"No SMS reached the SMPP server (decision: {decision})"

@@ -32,8 +32,11 @@ class SignInPage(BasePage):
 
     def enter_phone(self, phone):
         """phone: '7420870251' (read as Indian) or '+923345333345' (international format)."""
-        self.fill(self.PHONE, phone)
-        typed = (self.find(self.PHONE).text or "").strip()
+        for _ in range(3):  # the WebView sometimes re-renders and drops the typed text
+            self.fill(self.PHONE, phone)
+            typed = (self.find(self.PHONE).text or "").strip()
+            if typed:
+                break
         digits = lambda s: "".join(c for c in s if c.isdigit())
         assert digits(typed) == digits(phone) and typed.startswith("+") == phone.startswith("+"), (
             f"Phone field holds {typed!r}, expected {phone!r}")
@@ -44,11 +47,13 @@ class SignInPage(BasePage):
 
     NAME = _html_id("ap_customer_name")
     PASSWORD = _html_id("ap_password")
-    VERIFY = (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textMatches("(?i)verify mobile number")')
+    COUNTRY_PICKER = _html_id("auth-country-picker")
+    REG_PHONE = _html_id("ap_phone_number")
 
-    def complete_create_account(self, timeout=20):
+    def complete_create_account(self, country, national, timeout=45):
         """If Continue landed on 'Create account' (number not registered), fills a random name and
-        password and taps 'Verify mobile number'. Returns True if it did, False if the page never showed."""
+        password, picks the country and re-enters the number (this form's own field starts empty on
+        India), then taps the submit button ('Verify mobile number'). Returns True if it did, False if the page never showed."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.driver.find_elements(*self.NAME):
@@ -61,8 +66,18 @@ class SignInPage(BasePage):
         self.fill(self.NAME, f"{first} {last}")
         # ponytail: random letters+digits satisfies the 6+ char rule; the password is never kept
         self.fill(self.PASSWORD, "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12)) + "!1aA")
+        if self.driver.find_elements(*self.REG_PHONE):  # variant with its own country picker and empty number field
+            self.click(self.COUNTRY_PICKER)
+            # the list is a long popover; scroll the entry into view, then tap it
+            entry = (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiScrollable(new UiSelector().scrollable(true).instance(0))'
+                     f'.scrollIntoView(new UiSelector().textStartsWith("{country} +"))')
+            self.click(entry)
+            time.sleep(2)  # let the popover close, or the field below still counts as covered
+            self.click(self.REG_PHONE)
+            self.fill(self.REG_PHONE, national)
         try:
-            self.click(self.VERIFY)
+            self.driver.hide_keyboard()  # the keyboard covers the Submit button
         except Exception:
-            self.click(self.CONTINUE)  # the button's html id is also 'continue'
+            pass  # already hidden
+        self.click_first_visible(self.CONTINUE)  # labelled 'Verify mobile number' once the form is complete
         return True
