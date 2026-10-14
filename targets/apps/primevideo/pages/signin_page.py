@@ -33,8 +33,11 @@ class SignInPage(BasePage):
 
     def enter_phone(self, phone):
         """phone: '7420870251' (read as Indian) or '+923345333345' (international format)."""
-        self.fill(self.PHONE, phone)
-        typed = (self.find(self.PHONE).text or "").strip()
+        for _ in range(3):  # the WebView sometimes re-renders and drops the typed text
+            self.fill(self.PHONE, phone)
+            typed = (self.find(self.PHONE).text or "").strip()
+            if typed:
+                break
         digits = lambda s: "".join(c for c in s if c.isdigit())
         assert digits(typed) == digits(phone) and typed.startswith("+") == phone.startswith("+"), (
             f"Phone field holds {typed!r}, expected {phone!r}")
@@ -46,14 +49,14 @@ class SignInPage(BasePage):
     NAME = _html_id("ap_customer_name")
     PASSWORD = _html_id("ap_password")
     COUNTRY_PICKER = _html_id("auth-country-picker")  # defaults to 'IN +91'
-    PHONE_FIELD = _html_id("ap_phone_number")  # national number only; the picker supplies the code
-    VERIFY = (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textMatches("(?i)verify mobile number")')
-    COUNTRY_LIST = (AppiumBy.CLASS_NAME, "android.widget.ListView")  # the picker's open dropdown
+    PHONE_FIELD = _html_id("ap_phone_number")  # this form's own field; starts empty, national digits only
+    COUNTRY_LIST = (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().scrollable(true)')  # the picker's open dropdown
 
-    def complete_create_account(self, phone, timeout=20):
+    def complete_create_account(self, phone, timeout=45):
         """If Continue landed on 'Create account' (number not registered), fills a random name and
-        password, picks phone's country in the picker and types its national number, then taps
-        'Verify mobile number'. Returns True if it did, False if the page never showed."""
+        password, picks phone's country in the picker and types its national number into this
+        form's own (separate, initially empty) phone field, then taps the submit button ('Verify
+        mobile number'). Returns True if it did, False if the page never showed."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.driver.find_elements(*self.NAME):
@@ -67,20 +70,22 @@ class SignInPage(BasePage):
         # ponytail: random letters+digits satisfies the 6+ char rule; the password is never kept
         self.fill(self.PASSWORD, "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12)) + "!1aA")
 
-        if phone.startswith("+"):
-            digits = phone[1:]
-            country = countries.country_for_digits(digits)
-            national = digits[len(countries.calling_code(country)):]
-            if country != "India":  # the picker's default; nothing to change
-                self._select_country(country)
-        else:
-            national = phone  # bare digits: already national, India (the picker's default)
-        self.fill(self.PHONE_FIELD, national)
+        if self.driver.find_elements(*self.PHONE_FIELD):  # variant with its own country picker and empty number field
+            if phone.startswith("+"):
+                digits = phone[1:]
+                country = countries.country_for_digits(digits)
+                national = digits[len(countries.calling_code(country)):]
+                if country != "India":  # the picker's default; nothing to change
+                    self._select_country(country)
+            else:
+                national = phone  # bare digits: already national, India (the picker's default)
+            self.fill(self.PHONE_FIELD, national)
 
         try:
-            self.click(self.VERIFY)
+            self.driver.hide_keyboard()  # the keyboard covers the Submit button
         except Exception:
-            self.click(self.CONTINUE)  # the button's html id is also 'continue'
+            pass  # already hidden
+        self.click_first_visible(self.CONTINUE)  # labelled 'Verify mobile number' once the form is complete
         return True
 
     def _select_country(self, country_name, timeout=25):

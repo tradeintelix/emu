@@ -34,13 +34,15 @@ class StartPage(BasePage):
         if self.driver.find_elements(*self.SIGN_IN_PAGE):
             return "already on the sign-in page"
         for _ in range(attempts):
+            if self.driver.find_elements(*self.SIGN_IN_PAGE):  # opened late after the previous tap
+                return "homepage"
             if self.driver.find_elements(*self.LOGIN_OR_SIGN_UP):
                 variant, button = "Login or Sign up screen", self.LOGIN_OR_SIGN_UP
             else:
                 variant, button = "homepage", self.HOME_SIGN_IN
             self.click(button)
             try:
-                WebDriverWait(self.driver, 8).until(lambda d: d.find_elements(*self.SIGN_IN_PAGE))
+                WebDriverWait(self.driver, 25).until(lambda d: d.find_elements(*self.SIGN_IN_PAGE))
                 return variant
             except TimeoutException:
                 continue

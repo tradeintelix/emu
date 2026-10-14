@@ -1,5 +1,3 @@
-import time
-
 from config.settings import PHONE, PHONE_COUNTRY, require
 from core.countries import calling_code
 from core.permissions import allow_permissions_until
@@ -10,7 +8,8 @@ from targets.apps.primevideo.pages.start_page import StartPage
 
 def test_signin_with_phone_number(steps):
     """First launch -> (homepage 'SIGN IN' | 'Login or Sign up') -> Welcome page -> make sure
-    'Sign in' is selected -> enter number -> Continue -> OTP screen -> wait 5s. Never types an OTP.
+    'Sign in' is selected -> enter number -> Continue -> OTP screen -> check the SMPP decision.
+    Never types an OTP.
 
     Number three ways (same as WhatsApp):
       --phone-country Pakistan --phone 3345333345   (code from core/countries.json)
@@ -44,7 +43,12 @@ def test_signin_with_phone_number(steps):
         signin.tap_continue()
     with steps.step("Create account if asked"):
         print(f"Create-account page filled: {signin.complete_create_account(phone)}", flush=True)
+    steps.otp.otp_requested()
     with steps.step("Wait for OTP screen"):
         print(f"OTP screen: code sent to {otp.wait_until_open()}", flush=True)
-    with steps.step("Wait 5s on the OTP screen"):
-        time.sleep(5)
+    with steps.step("Check whether the SMS arrived"):
+        # SMPP decision (core/otp.py): ACCEPTED = our SMPP server got the SMS; REJECTED = it went to a
+        # real handset; None = nothing in time (or MongoDB/Redis down, so nothing to check against)
+        decision, code = steps.otp.wait()
+        print(f"SMS arrived: {decision} (code {'received' if code else 'none'})", flush=True)
+        assert decision == "ACCEPTED", f"No SMS reached the SMPP server (decision: {decision})"
