@@ -29,13 +29,20 @@ class OtpPage(BasePage):
 
     Some numbers get there straight after OK; others first get a missed-call "Allow access"
     explainer, whose "Verify another way" opens a "Choose how to verify" sheet. There the flow
-    picks Receive SMS. Taps on these screens are hardware taps: registration drops injected ones."""
+    picks Receive SMS. Some numbers instead get an OS permission dialog ("Allow WhatsApp to
+    confirm the number of an incoming phone call?") for flash-call verification; it is declined
+    so WhatsApp falls back to its normal SMS/choose-method flow. Taps on WhatsApp's own screens
+    are hardware taps: registration drops injected ones. The OS dialog is a different window
+    (permission controller), so a normal click reaches it."""
 
     VERIFY_ANOTHER_WAY = (AppiumBy.ID, "com.whatsapp:id/secondary_button")  # on the "Allow access" explainer
     METHOD_SHEET = (AppiumBy.ID, "com.whatsapp:id/request_otp_code_bottom_sheet_title")
     SMS = (AppiumBy.XPATH, '//*[@text="Receive SMS"]')
     SMS_DETAILS = (AppiumBy.XPATH, '//*[@text="Receive SMS"]/following-sibling::*[1]')  # "Try again in 6 hours" when rate-limited
     SHEET_CONTINUE = (AppiumBy.ID, "com.whatsapp:id/continue_button")
+    # Android's runtime permission dialog for flash-call verification ("Only this time" / "Don't allow").
+    CALL_PERMISSION_DENY = (AppiumBy.ANDROID_UIAUTOMATOR,
+                            'new UiSelector().resourceIdMatches(".*:id/permission_deny_button")')
 
     def wait_until_open(self, timeout=60):
         """Gets past the method choice (SMS) if it shows up. Returns the code screen's texts."""
@@ -50,6 +57,8 @@ class OtpPage(BasePage):
                     self._choose_sms()
                 elif self.driver.find_elements(*self.VERIFY_ANOTHER_WAY):
                     self.hardware_tap(self.VERIFY_ANOTHER_WAY)
+                elif self.driver.find_elements(*self.CALL_PERMISSION_DENY):
+                    self.driver.find_elements(*self.CALL_PERMISSION_DENY)[0].click()
             except StaleElementReferenceException:
                 continue  # the screen changed under the tap; look again
             time.sleep(1)

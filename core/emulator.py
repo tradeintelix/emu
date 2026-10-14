@@ -2,8 +2,10 @@
 import glob
 import logging
 import platform
+import re
 import subprocess
 import time
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +52,12 @@ def _ensure_avd(name):
     api, tag, _ = images[-1].split("system-images/")[1].split("/")
     log.info("Creating AVD %s from %s;%s;%s", name, api, tag, abi)
     run(AVDMANAGER, "create", "avd", "-n", name, "-d", "pixel_6", "-k", f"system-images;{api};{tag};{abi}", input="no\n")
+    if "playstore" in tag:
+        # avdmanager never turns this on itself (only Android Studio's GUI does); left off, Google
+        # treats the device as uncertified and refuses any account sign-in ("Login not available").
+        config = Path.home() / ".android" / "avd" / f"{name}.avd" / "config.ini"
+        config.write_text(re.sub(r"^PlayStore\.enabled=.*$", "PlayStore.enabled=yes", config.read_text(),
+                                 flags=re.M))
 
 
 def _wait_for_boot(serial, timeout):
