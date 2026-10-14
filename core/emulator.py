@@ -10,6 +10,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 from config.settings import AVD_NAME, BOOT_TIMEOUT, HEADLESS, SDK
+from config.settings import DEVICE_USE_ROOT_AVD, GOLDEN_ROOT_AVD
 
 ADB = f"{SDK}/platform-tools/adb"
 EMULATOR = f"{SDK}/emulator/emulator"
@@ -77,6 +78,34 @@ def _wait_for_boot(serial, timeout):
     raise TimeoutError(f"{serial} did not finish booting within {timeout}s")
 
 
+def _resolve_avd(name):
+    """Prefer the rooted image when configured (future golden-root with
+    Magisk/LSPosed); falls back to the requested AVD when it is blank or
+    missing, so current machines keep working with zero setup."""
+    if DEVICE_USE_ROOT_AVD and GOLDEN_ROOT_AVD:
+        try:
+            if GOLDEN_ROOT_AVD in run(EMULATOR, "-list-avds").split():
+                return GOLDEN_ROOT_AVD
+            log.warning("GOLDEN_ROOT_AVD=%s missing, using %s", GOLDEN_ROOT_AVD, name)
+        except Exception as e:  # noqa: BLE001 - AVD listing must not fail boot
+            log.warning("AVD list failed (%s), using %s", e, name)
+    return name
+
+
+def _identity_boot_args():
+    """Per-number `-prop` / `-phone-number` flags (offline, no root). Empty
+    when DEVICE_UNIQUE=0. The orchestrator already cold-boots between
+    numbers, so each boot gets a different signature at no extra cost."""
+    try:
+        from core import device_identity as di
+        if not di.enabled():
+            return []
+        return di.boot_args(di.generate_identity())
+    except Exception as e:  # noqa: BLE001 - rotation must not fail boot
+        log.warning("identity boot args skipped: %s", e)
+        return []
+
+
 def ensure_device(avd_name=AVD_NAME, port=5554, headless=HEADLESS, timeout=BOOT_TIMEOUT, exclusive=False):
     """Return the serial of an online device, booting the emulator first if none is running.
     exclusive (parallel slots): only emulator-<port> counts, and it boots -read-only, so several
@@ -90,7 +119,10 @@ def ensure_device(avd_name=AVD_NAME, port=5554, headless=HEADLESS, timeout=BOOT_
         return running[0]
 
     _ensure_avd(avd_name)
+    avd_name = _resolve_avd(avd_name)
+    _ensure_avd(avd_name)
     cmd = [EMULATOR, "-avd", avd_name, "-port", str(port), "-no-snapshot-save", "-no-boot-anim"]
+    cmd += _identity_boot_args()
     if exclusive:
         cmd.append("-read-only")
     if headless:

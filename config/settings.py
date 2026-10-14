@@ -11,6 +11,16 @@ AVD_NAME = os.getenv("AVD_NAME", "emu_test")
 HEADLESS = os.getenv("HEADLESS", "0") == "1"  # set on CI: no window, software GPU
 BOOT_TIMEOUT = int(os.getenv("BOOT_TIMEOUT", "240"))  # seconds
 
+# Device uniqueness (core/device_identity.py): 1 = each number boots/applies a
+# different coherent fingerprint (profile + android_id + gsm operator +
+# timezone/locale). 0 = legacy behaviour (all numbers share golden's ID).
+DEVICE_UNIQUE = os.getenv("DEVICE_UNIQUE", "1") != "0"
+# Optional rooted image for full SSAID/Build spoof later (Magisk/LSPosed).
+# Blank = use AVD_NAME for everything. When set + DEVICE_USE_ROOT_AVD=1,
+# slot boots prefer it; golden stays untouched for Integrity-sensitive apps.
+GOLDEN_ROOT_AVD = os.getenv("GOLDEN_ROOT_AVD", "")
+DEVICE_USE_ROOT_AVD = os.getenv("DEVICE_USE_ROOT_AVD", "0") == "1"
+
 def require(name):
     value = os.getenv(name)
     if not value:

@@ -25,6 +25,16 @@ def steps(request):
     package = cfg.APP_PACKAGE
 
     serial = ensure_device(port=slot.EMULATOR_PORT, exclusive=slot.PARALLEL)
+    identity = None
+    try:
+        from core import device_identity as di
+        if di.enabled():
+            identity = di.generate_identity(phone_country=PHONE_COUNTRY or getattr(cfg, "COUNTRY", ""))
+            summary = di.apply_runtime(serial, identity, run)
+            print(f"[device] {serial}: {summary}", flush=True)
+    except Exception as e:  # noqa: BLE001 - rotation must not fail runs
+        print(f"[device] rotation skipped: {type(e).__name__}: {e}", flush=True)
+        identity = None
     if not is_installed(serial, package):
         raise RuntimeError(f"{package} is not installed on {serial}. Install it from the Play Store or with: adb install <apk>")
     if getattr(cfg, "FRESH_START", False):
@@ -44,6 +54,14 @@ def steps(request):
     driver.activate_app(package)
     run_name = time.strftime("%Y%m%d-%H%M%S") + (f"-slot{slot.INDEX}" if slot.PARALLEL else "")
     rec = StepRecorder(driver, target_dir / "reports" / run_name)
+    if identity is not None:
+        try:
+            import json
+            (target_dir / "reports" / run_name).mkdir(parents=True, exist_ok=True)
+            (target_dir / "reports" / run_name / "device-fingerprint.json").write_text(
+                json.dumps({"serial": serial, **identity}, indent=2, default=str))
+        except Exception as e:  # noqa: BLE001 - logging must not fail runs
+            print(f"[device] fingerprint log skipped: {type(e).__name__}: {e}", flush=True)
     rec.attempt = results.attempt_for_run("app", target_dir.name)
     rec.otp = otp.Waiter(rec.attempt)
     yield rec
