@@ -48,6 +48,10 @@ PROFILES = [
 # MCC/MNC are the primary operator; iso/timezone/locale must match the IP
 # country later (Phase 3) or the mismatch itself flags the run.
 CARRIERS = {
+    "uzbekistan": {"mcc": "434", "mnc": "04", "iso": "uz", "alpha": "Beeline",
+                 "timezone": "Asia/Tashkent", "locale": "uz-UZ"},
+    "bolivia": {"mcc": "736", "mnc": "02", "iso": "bo", "alpha": "Entel",
+                "timezone": "America/La_Paz", "locale": "es-BO"},
     "india": {"mcc": "404", "mnc": "45", "iso": "in", "alpha": "Airtel",
               "timezone": "Asia/Kolkata", "locale": "en-IN"},
     "pakistan": {"mcc": "410", "mnc": "01", "iso": "pk", "alpha": "Mobilink",
@@ -114,14 +118,18 @@ def generate_identity(seed_str=None, phone_country=None, phone=None):
 
 def boot_args(identity):
     """Emulator flags giving this boot a different hardware signature.
-    Safe `-prop` keys only (model/brand/manufacturer); fingerprint-level
-    props can break boot on Play images and belong to golden-root."""
+    Safe `-prop` keys only (model/brand/manufacturer/device, all partition
+    variants: since Android 10 `ro.product.model` is derived from
+    `ro.product.system.model` etc., so setting the bare key alone is
+    ignored and every variant must be set). Fingerprint-level props can
+    break boot on Play images and belong to golden-root + resetprop."""
     p = identity["profile"]
-    args = [
-        "-prop", f"ro.product.model={p['model']}",
-        "-prop", f"ro.product.brand={p['brand']}",
-        "-prop", f"ro.product.manufacturer={p['manufacturer']}",
-    ]
+    args = []
+    for key, value in (("model", p["model"]), ("brand", p["brand"]),
+                       ("manufacturer", p["manufacturer"]), ("device", p["device"])):
+        for variant in ("ro.product.%s", "ro.product.system.%s",
+                        "ro.product.vendor.%s", "ro.product.odm.%s"):
+            args += ["-prop", f"{variant % key}={value}"]
     if identity.get("phone_digits"):
         args += ["-phone-number", identity["phone_digits"][-15:]]
     return args
@@ -151,6 +159,13 @@ def apply_runtime(serial, identity, run_fn):
     adb("adb", "-s", serial, "shell", "settings", "put", "secure",
         "android_id", identity["android_id"])
     # 2. Carrier emulation coherent with the typed number's country.
+    # gsm.* props are writable only as root: golden-root allows `adb root`
+    # (Play images refuse it — the setprops below then stay best-effort).
+    try:
+        run_fn("adb", "-s", serial, "root")
+        run_fn("adb", "-s", serial, "wait-for-device", timeout=60)
+    except Exception as e:  # noqa: BLE001 - rotation must not fail runs
+        log.warning("adb root unavailable on %s: %s", serial, e)
     c = identity["carrier"]
     numeric = c["mcc"] + c["mnc"]
     for prop in ("gsm.sim.operator.numeric", "gsm.operator.numeric"):

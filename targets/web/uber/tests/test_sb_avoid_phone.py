@@ -5,7 +5,7 @@ home -> Sign up -> Ride -> guest-map Sign up -> phone -> Continue -> OTP.
 
 Avoidance techniques (Browserless guide):
 - real Chrome via CDP (TLS/JS coherence), headed, persistent profile
-- locale en-US + tz Asia/Kolkata for header coherence
+- locale + tz + entry page follow --country for header coherence
 - visible-only clicks, human sleeps + human-speed typing, minimal pages
 - honeypot-safe: exact IDs/hrefs only, never blind input dumps
 
@@ -24,7 +24,7 @@ from core.web.steps import StepRecorder
 from targets.web.uber import target as target_cfg
 
 
-HOME_URL = "https://www.uber.com/in/en/"
+HOME_URL = target_cfg.home_url(PROXY_COUNTRY or target_cfg.PROXY_COUNTRY)
 # Visible-only, locale-resilient selectors (href/ID, not labels).
 RIDE_LINK = "a[href*='m.uber.com/looking']"
 GUEST_SIGNUP = "a[href*='/go/sign-up']"

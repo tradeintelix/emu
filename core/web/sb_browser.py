@@ -55,12 +55,13 @@ def create_sb_cdp_browser(url="about:blank", country="in", session=None):
     from seleniumbase import sb_cdp
 
     proxy, sid = build_proxy_string(country_suffix=country, session=session)
+    lang = SB_LANG or "en-US"
     kwargs = {
         "headless": bool(SB_HEADLESS),
         "incognito": False,  # incognito wipes coherence; persistent profile avoids more challenges
-        "lang": SB_LANG or "en-US",
+        "lang": lang,
         "user_data_dir": resolve_profile(),
-        "browser_args": ["--window-size=1366,900", "--lang=en-US"],
+        "browser_args": ["--window-size=1366,900", f"--lang={lang}"],
     }
     if SB_TZ:
         kwargs["tzone"] = SB_TZ

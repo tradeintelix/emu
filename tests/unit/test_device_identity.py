@@ -23,6 +23,8 @@ def test_android_id_format():
 def test_carrier_matches_country():
     assert di.generate_identity(seed_str="x", phone_country="Pakistan")["carrier"]["iso"] == "pk"
     assert di.generate_identity(seed_str="x", phone_country="India")["carrier"]["iso"] == "in"
+    assert di.generate_identity(seed_str="x", phone_country="Uzbekistan")["carrier"]["iso"] == "uz"
+    assert di.generate_identity(seed_str="x", phone_country="Uzbekistan")["carrier"]["timezone"] == "Asia/Tashkent"
     assert di.generate_identity(seed_str="x", phone_country="Nope")["carrier"]["iso"] == "us"
 
 
@@ -32,6 +34,7 @@ def test_boot_args_coherent():
     joined = " ".join(args)
     assert "-prop" in args and "-phone-number" in args
     assert ident["profile"]["model"] in joined
+    assert "ro.product.system.model=" in joined
     assert "9876543210" in joined
 
 
@@ -39,7 +42,7 @@ def test_apply_runtime_never_fails_and_sets_expected_keys():
     ident = di.generate_identity(seed_str="s", phone_country="Kuwait")
     calls = []
 
-    def fail_first(*cmd):
+    def fail_first(*cmd, **kw):
         calls.append(cmd)
         raise RuntimeError("adb down")
 
